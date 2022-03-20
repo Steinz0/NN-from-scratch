@@ -42,7 +42,7 @@ class MSELoss(Loss):
         return np.sum(y-yhat,axis=1)**2
 
     def backward(self, y, yhat):
-        return 2*np.sum(np.abs(y-yhat),axis=1)
+        return -2*np.sum(y-yhat,axis=1)
 
 class Linear(Module):
     def __init__(self, input, output):
@@ -53,16 +53,18 @@ class Linear(Module):
         self._gradient = np.zeros((input, output))
     
     def forward(self, X):
-        return np.dot(X,self._parameters)
+        return np.matmul(X,self._parameters)
 
     def zero_grad(self):
         self._gradient = np.zeros((self.input,self.output))
 
     def backward_update_gradient(self, input, delta):
-        self._gradient += input.T @ delta.reshape((delta.shape[0],-1))
+        delta = delta.reshape((delta.shape[0],-1))
+        self._gradient += np.matmul(input.T,delta)
 
     def backward_delta(self, input, delta):
-        return input.T @ delta
+        delta = delta.reshape((delta.shape[0],-1))
+        return np.matmul(input.T,delta)
 
     def update_parameters(self, gradient_step=0.001):
         self._parameters -= gradient_step * self._gradient
@@ -78,7 +80,7 @@ class TanH(Module):
         pass
 
     def backward_delta(self, input, delta):
-        return (1 - np.tanh(input)).T @ delta
+        return np.matmul((1 - np.tanh(input)).T, delta)
 
     def update_parameters(self, gradient_step=0.001):
         return super().update_parameters(gradient_step)
@@ -95,7 +97,7 @@ class Sigmoide(Module):
 
     def backward_delta(self, input, delta):
         f = 1/(1+np.exp(-input))
-        return (f(1-f)).T @ delta
+        return np.matmul((f*(1-f)).T, delta)
 
     def update_parameters(self, gradient_step=0.001):
         return super().update_parameters(gradient_step)

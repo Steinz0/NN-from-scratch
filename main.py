@@ -9,18 +9,52 @@ mse = cl.MSELoss()
 
 linear = cl.Linear(20,2)
 
-linear.forward(x)
-
-max_iter = 500
+max_iter = 0#4000
 
 for iter in range(max_iter):
     #Calcul forward
     yhat = linear.forward(x)
     loss = mse.forward(y,yhat)
-    print("Iteration ",iter," : for ", loss.sum())
+    print("Linear Iteration ",iter," : => LOSS : ", loss.sum())
     #Calcul backwards and retro-propagation
     bsme = mse.backward(y,yhat)
     linear.backward_update_gradient(x, bsme)
 
-    linear.update_parameters(gradient_step=10e-7)
+    #Update paramaters and grad 0 
+    linear.update_parameters(gradient_step=10e-6)
     linear.zero_grad()
+
+l1 = cl.Linear(20,10)
+t1 = cl.TanH()
+l2 = cl.Linear(10,2)
+t2 = cl.TanH()
+s = cl.Sigmoide()
+
+max_iter2 = 4000
+
+for iter in range(max_iter2):
+    #Calcul forward
+    a1 = l1.forward(x)
+    assert a1.shape == (500,10)
+    z1 = t1.forward(a1)
+    assert z1.shape == (500,10)
+    a2 = l2.forward(z1)
+    assert a2.shape == (500,2)
+    z2 = t2.forward(a2)
+    assert z2.shape == (500,2)
+    yhat = s.forward(z2)
+    assert yhat.shape == (500,2)
+    loss = mse.forward(y,yhat)
+    print("NN Iteration ",iter," : => LOSS : ", loss.sum())
+    #Calcul backwards and retro-propagation
+    bsme = mse.backward(y,yhat)
+    bs = s.backward_delta(z2,bsme)
+    bt2 = t2.backward_delta(a2,bs)
+    l2.backward_update_gradient(z1,bt2)
+    bl2 = l2.backward_delta(z1,bt2)
+    bt1 = t1.backward_delta(a1,bl2)
+    l1.backward_update_gradient(x,bt1)
+
+    #Update paramaters and grad 0
+    l1.update_parameters(gradient_step=10e-6)
+    l1.zero_grad()
