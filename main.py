@@ -9,7 +9,6 @@ mse = cl.MSELoss()
 
 linear = cl.Linear(20,2)
 
-input()
 max_iter = 0#4000
 
 for iter in range(max_iter):
@@ -88,4 +87,4 @@ for iter in range(max_iter2):
 
 
 print("################### SGD #####################")
-cl.SGD(cl.Optim(seq, mse, 0.001), x, y, batch_size=200)
+cl.SGD(cl.Optim(seq, mse, 0.001), x, y, batch_size=200, verbose=True)

@@ -1,4 +1,4 @@
-from tabnanny import verbose
+from turtle import forward
 import numpy as np
 
 class Loss(object):
@@ -152,15 +152,7 @@ class Optim():
         self.net.backward(delta_loss)
         self.net.update_parameters(gradient_step=self.eps)
 
-
-# def SGD(net, dataset, batch_size, nb_iter):
-#     indices = np.arange(dataset.shape[0])
-#     np.random.shuffle(indices)
-#     print(dataset.shape[0])
-#     for i in range(batch_size-1):
-        
-
-def SGD(optim, x, y, batch_size, niter=1000):
+def SGD(optim, x, y, batch_size, niter=1000, verbose=False):
         # Liste de variables pour simplifier la création des batchs
         card = x.shape[0]
         nb_batchs = card//batch_size
@@ -178,5 +170,77 @@ def SGD(optim, x, y, batch_size, niter=1000):
 
             # Mise-à-jour sur un batch
             batch = batchs[i%(nb_batchs)]
-            print("###### BATCH ",i," ######")
-            optim.step(x[batch], y[batch], verbose=True)
+            if verbose:
+                print("###### BATCH ",i," ######")
+            optim.step(x[batch], y[batch], verbose=verbose)
+
+class Conv1D(Module):
+    def __init__(self, k_size, chan_in, chan_out, stride):
+        super().__init__()
+        self.k_size = k_size
+        self.chan_in = chan_in 
+        self.chan_out = chan_out
+        self.stride = stride
+        self._parameters = np.random.random((k_size, chan_in, chan_out))
+        self._gradient = np.zeros((k_size, chan_in, chan_out))
+
+    def forward(self, batch):
+        pass
+
+    def backward_delta(self, input, delta):
+        return super().backward_delta(input, delta)
+
+    def backward_update_gradient(self, input, delta):
+        return super().backward_update_gradient(input, delta)
+
+    def update_parameters(self, gradient_step=0.001):
+        return super().update_parameters(gradient_step)
+
+class MaxPool1D(Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, batch):
+        pass
+
+    def backward_delta(self, input, delta):
+        return super().backward_delta(input, delta)
+
+    def backward_update_gradient(self, input, delta):
+        pass
+
+    def update_parameters(self, gradient_step=0.001):
+        pass
+
+class Flatten(Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, X):
+        batch = X.shape[0]
+        return np.reshape((batch,-1))
+
+    def backward_delta(self, input, delta):
+        return input * delta
+
+    def backward_update_gradient(self, input, delta):
+        pass
+
+    def update_parameters(self, gradient_step=0.001):
+        pass
+
+class ReLu(Module):
+    def __init__(self):
+        super().__init__()
+    
+    def forward(self, X):
+        return np.where(X>0, X, 0)
+
+    def backward_delta(self, input, delta):
+        return np.where(input>0, 1, 0) * delta
+
+    def backward_update_gradient(self, input, delta):
+        pass
+
+    def update_parameters(self, gradient_step=0.001):
+        pass
