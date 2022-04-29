@@ -1,4 +1,5 @@
 import numpy as np
+from tqdm import tqdm
 
 class Optim():
     def __init__(self, net, loss, eps=0.001) -> None:
@@ -10,12 +11,13 @@ class Optim():
         yhat = self.net.forward(batch_x)
         loss = self.loss.forward(batch_y, yhat)
         if verbose:
-            print("LOSS : ", loss.sum())
+            print("LOSS : ", loss.mean())
         delta_loss = self.loss.backward(batch_y, yhat)
         self.net.backward(delta_loss)
         self.net.update_parameters(gradient_step=self.eps)
 
-def SGD(optim, x, y, batch_size, niter=1000, verbose=False):
+def SGD(net, loss, x, y, batch_size, max_iter=1000, eps=0.001, verbose=False):
+        optim = Optim(net, loss, eps)
         # Liste de variables pour simplifier la création des batchs
         card = x.shape[0]
         nb_batchs = card//batch_size
@@ -25,7 +27,7 @@ def SGD(optim, x, y, batch_size, niter=1000, verbose=False):
         np.random.shuffle(inds)
         batchs = [[j for j in inds[i*batch_size:(i+1)*batch_size]] for i in range(nb_batchs)]
 
-        for i in range(niter):
+        for i in (range(max_iter)):
             # On mélange de nouveau lorsqu'on a parcouru tous les batchs
             if i%nb_batchs == 0:
                 np.random.shuffle(inds)
@@ -33,6 +35,4 @@ def SGD(optim, x, y, batch_size, niter=1000, verbose=False):
 
             # Mise-à-jour sur un batch
             batch = batchs[i%(nb_batchs)]
-            if verbose:
-                print("###### BATCH ",i," ######")
             optim.step(x[batch], y[batch], verbose=verbose)

@@ -20,7 +20,7 @@ def plot_data(data,labels=None):
     for i,l in enumerate(sorted(list(set(labels.flatten())))):
         plt.scatter(data[labels==l,0],data[labels==l,1],c=cols[i],marker=marks[i])
 
-def plot_frontiere(data,f,step=20):
+def plot_frontiere(data,f,seq,step=20):
     """ Trace un graphe de la frontiere de decision de f
     :param data: donnees
     :param f: fonction de decision
@@ -29,7 +29,7 @@ def plot_frontiere(data,f,step=20):
     """
     grid,x,y=make_grid(data=data,step=step)
 
-    plt.contourf(x,y,f(grid).reshape(x.shape),colors=('gray','blue'),levels=[-1,0,1])
+    plt.contourf(x,y,f(grid,seq).reshape(x.shape),colors=('gray','blue'),levels=[-1,0,1])
 
 def make_grid(data=None,xmin=-5,xmax=5,ymin=-5,ymax=5,step=20):
     """ Cree une grille sous forme de matrice 2d de la liste des points
