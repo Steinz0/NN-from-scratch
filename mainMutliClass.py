@@ -1,7 +1,3 @@
-
-import os, sys
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 import numpy as np
 
 from classes import *
@@ -23,8 +19,8 @@ def one_hot(Y):
 ############### USPS DATA ##########################################
 uspsdatatrain = "./data/USPS_train.txt"
 uspsdatatest = "./data/USPS_test.txt"
-alltrainx,alltrainy = load_usps(uspsdatatrain[:2000])
-alltestx,alltesty = load_usps(uspsdatatest[:2000])
+alltrainx,alltrainy = load_usps(uspsdatatrain[:])
+alltestx,alltesty = load_usps(uspsdatatest[:])
 
 alltrainy = one_hot(alltrainy)
 alltesty = one_hot(alltesty)

@@ -153,7 +153,7 @@ def SGD(net, loss, x, y, batch_size, max_iter=1000, eps=0.001, verbose=False):
         np.random.shuffle(inds)
         batchs = [[j for j in inds[i*batch_size:(i+1)*batch_size]] for i in range(nb_batchs)]
 
-        for i in (range(max_iter)):
+        for i in tqdm(range(max_iter)):
             # On mélange de nouveau lorsqu'on a parcouru tous les batchs
             if i%nb_batchs == 0:
                 np.random.shuffle(inds)
@@ -249,15 +249,18 @@ class Conv1D(Module):
     def __init__(self, k_size, chan_in, chan_out, stride):
         super().__init__()
         self.k_size = k_size
-        self.chan_in = chan_in 
+        self.chan_in = chan_in
         self.chan_out = chan_out
         self.stride = stride
-        self._parameters = np.random.random((k_size, chan_in, chan_out))
+        self._parameters = np.ones((k_size, chan_in, chan_out))
         self._gradient = np.zeros((k_size, chan_in, chan_out))
 
     def forward(self, batch, length, chan_in):
-        res = np.zeros(batch, (length-self.k_size)/self.stride +1,self.chan_out)
-
+        # res = np.zeros(batch, (length-self.k_size)/self.stride + 1, self.chan_out)
+        for c in range(self.chan_out):
+            for i in range(0, length-self.k_size, self.stride):
+                linear = np.dot(batch[:, i:self.k_size], self._parameters[c])
+                print(linear)
         
     def backward_delta(self, input, delta):
         return super().backward_delta(input, delta)
@@ -269,10 +272,12 @@ class Conv1D(Module):
         return super().update_parameters(gradient_step)
 
 class MaxPool1D(Module):
-    def __init__(self):
+    def __init__(self, k_size, stride):
         super().__init__()
+        self.k_size = k_size
+        self.stride = stride
 
-    def forward(self, batch):
+    def forward(self, batch, length, chan_in):
         pass
 
     def backward_delta(self, input, delta):
