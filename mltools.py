@@ -102,3 +102,55 @@ def get_usps(l,datax,datay):
 
 def show_usps(data):
     plt.imshow(data.reshape((16,16)),interpolation="nearest",cmap="gray")
+
+def show_usps_compare(x, x2):
+    plt.figure()
+    plt.subplot(1, 2, 1) # row 1, col 2 index 1
+    plt.imshow(x.reshape((16,16)),interpolation="nearest",cmap="gray")
+    plt.title(f'Real image')
+    plt.subplot(1, 2, 2) # row 1, col 2 index 1
+    plt.imshow(x2.reshape((16,16)),interpolation="nearest",cmap="gray")
+    plt.title(f'AutoEncodeur image')
+    plt.show()
+
+def predict_regression(X, seq):
+    return seq.forward(X)
+
+def predict_linear(X, seq):
+    res = seq.forward(X)
+    return np.where(res > 0.5, 1, 0)
+
+def accuracy_linear(seq, X, Y):
+    Yhat = predict_linear(X, seq)
+    return np.where(Yhat == Y, 1, 0).sum()/len(Y), Yhat
+
+def one_hot(Y):
+    one_hot_Y = np.zeros((Y.size,10))
+    one_hot_Y[np.arange(Y.size),Y]=1
+
+    return one_hot_Y
+
+def accuracy_argmax(x, y, net):
+    yhat = net.forward(x)
+    preds = np.argmax(yhat, axis=1)
+    y = np.argmax(y, axis=1)
+    
+    return np.where(preds == y, 1, 0).sum()/len(y)
+ 
+def show_mnist(x):
+    img = x.reshape(28,28)
+    plt.figure()
+    plt.imshow(img, cmap='gray')
+    plt.show()
+
+def show_mnist_compare(x, x2):
+    img = x.reshape(28,28)
+    img2 = x2.reshape(28,28)
+    plt.figure()
+    plt.subplot(1, 2, 1) # row 1, col 2 index 1
+    plt.imshow(img, cmap='gray')
+    plt.title(f'Real image')
+    plt.subplot(1, 2, 2) # row 1, col 2 index 1
+    plt.imshow(img2, cmap='gray')
+    plt.title(f'AutoEncodeur image')
+    plt.show()

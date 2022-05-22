@@ -72,6 +72,7 @@ class TanH(Module):
         pass
 
     def backward_delta(self, input, delta):
+        delta = delta.reshape((delta.shape[0],-1))
         return ( 1 - np.tanh(input)**2 ) * delta
 
     def update_parameters(self, gradient_step=0.001):
@@ -142,7 +143,19 @@ class Optim():
         self.net.update_parameters(gradient_step=self.eps)
 
         return loss
-def SGD(net, loss, x, y, batch_size, max_iter=1000, eps=0.001, verbose=False):
+
+def BatchGD(net, loss, x, y, epochs=5, eps=0.001, verbose=False):
+        optim = Optim(net, loss, eps)
+        all_loss = []
+        for e in tqdm(range(epochs)):
+            loss = optim.step(x, y)
+            all_loss.append(loss.mean())
+            if verbose:
+                print(f'BatchGD Epoch {e} => Loss : {loss.mean()}')
+        
+        return all_loss
+
+def MiniBatchGD(net, loss, x, y, batch_size, epochs=5, eps=0.001, verbose=False):
         optim = Optim(net, loss, eps)
         # Liste de variables pour simplifier la création des batchs
         card = x.shape[0]
@@ -153,49 +166,38 @@ def SGD(net, loss, x, y, batch_size, max_iter=1000, eps=0.001, verbose=False):
         np.random.shuffle(inds)
         batchs = [[j for j in inds[i*batch_size:(i+1)*batch_size]] for i in range(nb_batchs)]
 
-        for i in tqdm(range(max_iter)):
-            # On mélange de nouveau lorsqu'on a parcouru tous les batchs
-            if i%nb_batchs == 0:
-                np.random.shuffle(inds)
-                batchs = [[j for j in inds[i*batch_size:(i+1)*batch_size]] for i in range(nb_batchs)]
-
-            # Mise-à-jour sur un batch
-            batch = batchs[i%(nb_batchs)]
-            loss = optim.step(x[batch], y[batch])
-            all_loss.append(loss.mean())
+        for e in tqdm(range(epochs)):
             if verbose:
-                print(f'SGD Iteration {i} => Loss : {loss.mean()}')
+                print(f'MiniBatchGD Epoch {e} :')
+            for i in (range(len(batchs))):
+                batch = batchs[i]
+                loss = optim.step(x[batch], y[batch])
+                all_loss.append(loss.mean())
+                if verbose:
+                    print(f'\t Iteration {i} => Loss : {loss.mean()}')
         
         return all_loss
 
-def SGDWithTest(net, loss, x, y, xTest, yTest, batch_size, max_iter=1000, eps=0.001, verbose=False):
+def StochasticGD(net, loss, x, y, epochs=5, eps=0.001, verbose=False):
         optim = Optim(net, loss, eps)
-        # Liste de variables pour simplifier la création des batchs
-        card = x.shape[0]
-        nb_batchs = card//batch_size
-        inds = np.arange(card)
-        all_loss_train = []
-        all_loss_test = []
-        # Création des batchs
+
+        all_loss = []
+        inds = np.arange(len(x))
         np.random.shuffle(inds)
-        batchs = [[j for j in inds[i*batch_size:(i+1)*batch_size]] for i in range(nb_batchs)]
-
-        for i in tqdm(range(max_iter)):
-            # On mélange de nouveau lorsqu'on a parcouru tous les batchs
-            if i%nb_batchs == 0:
-                np.random.shuffle(inds)
-                batchs = [[j for j in inds[i*batch_size:(i+1)*batch_size]] for i in range(nb_batchs)]
-
-            # Mise-à-jour sur un batch
-            batch = batchs[i%(nb_batchs)]
-            loss_train = optim.step(x[batch], y[batch])
-            loss_test = loss.forward(net.forward(xTest), yTest)
-            all_loss_train.append(loss_train.mean())
-            all_loss_test.append(loss_test.mean())
+        for e in tqdm(range(epochs)):
             if verbose:
-                print(f'SGD Iteration {i} => Loss Train : {loss_train.mean()} | Loss Test : {loss_test.mean()}')
+                print(f'SGD Epoch {e} :')
+            for i in tqdm(inds):
+                # Mise-à-jour sur un batch
+                xi = np.reshape(x[i], (1,len(x[i])))
+                yi = np.reshape(y[i], (1,len(y[i])))
+
+                loss = optim.step(xi, yi)
+                all_loss.append(loss.mean())
+                if verbose:
+                    print(f'SGD Iteration {i} => Loss : {loss.mean()}')
         
-        return all_loss_train, all_loss_test 
+        return all_loss
 
 class Softmax(Module):
     def __init__(self):
@@ -234,7 +236,7 @@ class ReLu(Module):
         super().__init__()
     
     def forward(self, X):
-        return np.where(X>0, X, 0)
+        return np.maximum(X, 0)
 
     def backward_delta(self, input, delta):
         return np.where(input>0, 1, 0) * delta
@@ -248,40 +250,117 @@ class ReLu(Module):
 class Conv1D(Module):
     def __init__(self, k_size, chan_in, chan_out, stride):
         super().__init__()
-        self.k_size = k_size
-        self.chan_in = chan_in
-        self.chan_out = chan_out
-        self.stride = stride
-        self._parameters = np.ones((k_size, chan_in, chan_out))
-        self._gradient = np.zeros((k_size, chan_in, chan_out))
+        self._k_size = k_size
+        self._chan_in = chan_in
+        self._chan_out = chan_out
+        self._stride = stride
+        self._parameters = np.ones((chan_out, k_size, chan_in))
+        self._gradient = np.zeros((chan_out, k_size, chan_in))
+    
+    def forward(self, X):
+        batch, length, chan_in = X.shape
+        res = np.zeros((batch, (length - self._k_size) // self._stride + 1, self._chan_out))
 
-    def forward(self, batch, length, chan_in):
-        # res = np.zeros(batch, (length-self.k_size)/self.stride + 1, self.chan_out)
-        for c in range(self.chan_out):
-            for i in range(0, length-self.k_size, self.stride):
-                linear = np.dot(batch[:, i:self.k_size], self._parameters[c])
-                print(linear)
-        
+        for ind_x in range(batch):
+            for c in range(self._chan_out):
+                ind_res = 0
+                for i in range(0, length, self._stride):
+                    if (i - 1 + self._stride + self._k_size) > length:
+                        break
+                    res[ind_x, ind_res, c] = np.sum(self._parameters[c] * X[ind_x,i:i+self._k_size,:])
+
+                    ind_res += 1
+        return res
+
     def backward_delta(self, input, delta):
-        return super().backward_delta(input, delta)
+        batch, length, chan_in = input.shape
+        res = np.zeros((batch, length, chan_in))
+
+        for ind_x in range(batch):
+            for c in range(self._chan_out):
+                ind = 0
+                for i in range(0, length, self._stride):
+                    if (i + self._k_size) > length:
+                        break
+                    res[ind_x,i:i+self._k_size,:] += self._parameters[c, :, :] * delta[ind_x,ind,c]
+
+                    ind += 1
+        return res
 
     def backward_update_gradient(self, input, delta):
-        return super().backward_update_gradient(input, delta)
+        batch, length, chan_in = input.shape
+
+        for ind_x in range(batch):
+            for c in range(self._chan_out):
+                ind = 0
+                for i in range(0, length, self._stride):
+                    if (i + self._k_size) > length:
+                        break
+                    self._gradient[c, :, :] += delta[ind_x,ind,c] * input[ind_x,i:i+self._k_size,:]
+
+                    ind += 1
 
     def update_parameters(self, gradient_step=0.001):
         return super().update_parameters(gradient_step)
 
+class Conv1D_2(Module):
+    def __init__(self, k_size, chan_in, chan_out, stride):
+        super().__init__()
+        self.conv_horizon = Conv1D(k_size, chan_in, chan_out, stride)
+        self.conv_vertical = Conv1D(k_size, chan_in, chan_out, stride)
+
+    def forward(self, X):
+        forward_horizon = self.conv_horizon.forward(X)
+        forward_vertical = self.conv_vertical.forward(X)
+
+        return np.concatenate((forward_horizon, forward_vertical), axis=0)
+
+    def backward_delta(self, input, delta):
+        backward_horizon = self.conv_horizon.backward_delta(input, delta)
+        backward_vertical = self.conv_vertical.backward_delta(input, delta)
+
+        return np.concatenate((backward_horizon, backward_vertical), axis=0)
+
+    def backward_update_gradient(self, input, delta):
+        self.conv_horizon.backward_update_gradient(input, delta)
 class MaxPool1D(Module):
     def __init__(self, k_size, stride):
         super().__init__()
-        self.k_size = k_size
-        self.stride = stride
+        self._k_size = k_size
+        self._stride = stride
+        self.idx = []
 
-    def forward(self, batch, length, chan_in):
-        pass
+    def forward(self, X):
+        batch, length, chan_in = X.shape
+        res = np.zeros((batch, (length - self._k_size) // self._stride + 1, chan_in))
 
+        for ind_x in range(batch):
+                for c in range(chan_in):
+                    ind_res = 0
+                    for i in range(0, length, self._stride):
+                        if (i + self._k_size) > length:
+                            break
+                        res[ind_x, ind_res, c] = np.max(X[ind_x,i:i+self._k_size,c])
+                        # indmax = np.argmax(input[ind_x,i:i+self._k_size,c])
+                        # self.idx.append(indmax)
+                        ind_res += 1
+
+        return res
     def backward_delta(self, input, delta):
-        return super().backward_delta(input, delta)
+        batch, length, chan_in = input.shape
+        res = np.zeros((batch, length, chan_in))
+        
+        for ind_x in range(batch):
+            for c in range(chan_in):
+                ind = 0
+                for i in range(0, length, self._stride):
+                    if (i + self._k_size) <= length:
+                        indmax = np.argmax(input[ind_x,i:i+self._k_size,c])
+                        res[ind_x, i+indmax, c] = delta[ind_x, ind, c]
+                    ind += 1
+        
+        return res
+        # return delta * res[np.repeat(range(batch),chan_in),self.idx,list(range(chan_in))*batch]
 
     def backward_update_gradient(self, input, delta):
         pass
@@ -294,10 +373,12 @@ class Flatten(Module):
         super().__init__()
 
     def forward(self, X):
-        return X.reshape((X.shape[0],))
+        batch, length, chan_in = X.shape
+        return X.reshape((batch, length * chan_in))
 
     def backward_delta(self, input, delta):
-        return input * delta
+        batch, length, chan_in = input.shape
+        return delta.reshape(batch, length, chan_in)
 
     def backward_update_gradient(self, input, delta):
         pass

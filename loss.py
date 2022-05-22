@@ -58,9 +58,9 @@ class BinaryCrossEntropy(Loss):
         y -> One hot encoding
         """
         seuil = np.ones((yhat.shape[0], yhat.shape[1])) * -100
+        return - (y*np.log(yhat + 1e-100) + (1-y)*np.log(1-yhat+ 1e-100))
         # return - (y * np.log(yhat + 1e-100) + (1-y) * np.log(1-yhat + 1e-100))
         return - (y * np.maximum(seuil, np.log(yhat)) + (1-y) * np.maximum(seuil, np.log(1-yhat)))
-
     def backward(self, y, yhat):
         """
         y -> One hot encoding
