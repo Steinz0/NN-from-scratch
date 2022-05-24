@@ -1,3 +1,4 @@
+from turtle import forward
 import numpy as np
 from tqdm import tqdm
 
@@ -122,7 +123,8 @@ class Sequential():
         #Others backwards
         for ind in range(0,len(reverse_layers)):
             reverse_layers[ind].backward_update_gradient(reverse_vectors[ind+1], delta_val)
-            delta_val = reverse_layers[ind].backward_delta(reverse_vectors[ind+1], delta_val)
+            if ind != len(reverse_layers) - 1:
+                delta_val = reverse_layers[ind].backward_delta(reverse_vectors[ind+1], delta_val)
 
     def update_parameters(self, gradient_step=0.001):
         for l in self.layers:
@@ -151,7 +153,7 @@ def BatchGD(net, loss, x, y, epochs=5, eps=0.001, verbose=False):
             loss = optim.step(x, y)
             all_loss.append(loss.mean())
             if verbose:
-                print(f'BatchGD Epoch {e} => Loss : {loss.mean()}')
+                print(f'BatchGD Epoch {e+1} => Loss : {loss.mean()}')
         
         return all_loss
 
@@ -168,8 +170,8 @@ def MiniBatchGD(net, loss, x, y, batch_size, epochs=5, eps=0.001, verbose=False)
 
         for e in tqdm(range(epochs)):
             if verbose:
-                print(f'MiniBatchGD Epoch {e} :')
-            for i in (range(len(batchs))):
+                print(f'MiniBatchGD Epoch {e+1} :')
+            for i in range(len(batchs)):
                 batch = batchs[i]
                 loss = optim.step(x[batch], y[batch])
                 all_loss.append(loss.mean())
@@ -186,7 +188,7 @@ def StochasticGD(net, loss, x, y, epochs=5, eps=0.001, verbose=False):
         np.random.shuffle(inds)
         for e in tqdm(range(epochs)):
             if verbose:
-                print(f'SGD Epoch {e} :')
+                print(f'SGD Epoch {e+1} :')
             for i in tqdm(inds):
                 # Mise-à-jour sur un batch
                 xi = np.reshape(x[i], (1,len(x[i])))
@@ -254,7 +256,7 @@ class Conv1D(Module):
         self._chan_in = chan_in
         self._chan_out = chan_out
         self._stride = stride
-        self._parameters = np.ones((chan_out, k_size, chan_in))
+        self._parameters = np.ones((chan_out, k_size, chan_in)) * 1e-5
         self._gradient = np.zeros((chan_out, k_size, chan_in))
     
     def forward(self, X):
@@ -310,19 +312,44 @@ class Conv1D_2(Module):
         self.conv_vertical = Conv1D(k_size, chan_in, chan_out, stride)
 
     def forward(self, X):
-        forward_horizon = self.conv_horizon.forward(X)
-        forward_vertical = self.conv_vertical.forward(X)
+        xreshape = X.reshape(X.shape[0], int(np.sqrt(X.shape[1])), int(np.sqrt(X.shape[1])), X.shape[2])
+        Xt = np.zeros((xreshape.shape[0], xreshape.shape[1], xreshape.shape[2]))
+        for ind in range(len(xreshape)):
+            Xt[ind] = xreshape[ind].T
+        Xt = Xt.reshape(len(Xt), -1, 1)
 
-        return np.concatenate((forward_horizon, forward_vertical), axis=0)
+        forward_horizon = self.conv_horizon.forward(X)
+        forward_vertical = self.conv_vertical.forward(Xt)
+
+        return np.concatenate((forward_horizon, forward_vertical), axis=1)
 
     def backward_delta(self, input, delta):
-        backward_horizon = self.conv_horizon.backward_delta(input, delta)
-        backward_vertical = self.conv_vertical.backward_delta(input, delta)
+        xreshape = input.reshape(input.shape[0], int(np.sqrt(input.shape[1])), int(np.sqrt(input.shape[1])), input.shape[2])
+        Xt = np.zeros((xreshape.shape[0], xreshape.shape[1], xreshape.shape[2]))
+        for ind in range(len(xreshape)):
+            Xt[ind] = xreshape[ind].T
+        Xt = Xt.reshape(len(Xt), -1, 1)
 
-        return np.concatenate((backward_horizon, backward_vertical), axis=0)
+        backward_horizon = self.conv_horizon.backward_delta(input, delta[:,:int(delta.shape[1]/2)])
+        backward_vertical = self.conv_vertical.backward_delta(Xt, delta[:,int(delta.shape[1]/2):,:])
+
+        return backward_horizon + backward_vertical
 
     def backward_update_gradient(self, input, delta):
-        self.conv_horizon.backward_update_gradient(input, delta)
+        xreshape = input.reshape(input.shape[0], int(np.sqrt(input.shape[1])), int(np.sqrt(input.shape[1])), input.shape[2])
+        Xt = np.zeros((xreshape.shape[0], xreshape.shape[1], xreshape.shape[2]))
+        for ind in range(len(xreshape)):
+            Xt[ind] = xreshape[ind].T
+        Xt = Xt.reshape(len(Xt), -1, 1)
+
+        self.conv_horizon.backward_update_gradient(input, delta[:,:int(delta.shape[1]/2),:])
+        self.conv_vertical.backward_update_gradient(Xt, delta[:,int(delta.shape[1]/2):,:])
+
+    def update_parameters(self, gradient_step=0.001):
+        self.conv_horizon.update_parameters(gradient_step)
+        self.conv_vertical.update_parameters(gradient_step)
+
+
 class MaxPool1D(Module):
     def __init__(self, k_size, stride):
         super().__init__()
@@ -346,6 +373,7 @@ class MaxPool1D(Module):
                         ind_res += 1
 
         return res
+
     def backward_delta(self, input, delta):
         batch, length, chan_in = input.shape
         res = np.zeros((batch, length, chan_in))
@@ -356,7 +384,7 @@ class MaxPool1D(Module):
                 for i in range(0, length, self._stride):
                     if (i + self._k_size) <= length:
                         indmax = np.argmax(input[ind_x,i:i+self._k_size,c])
-                        res[ind_x, i+indmax, c] = delta[ind_x, ind, c]
+                        res[ind_x, i+indmax, c] += delta[ind_x, ind, c]
                     ind += 1
         
         return res
@@ -368,6 +396,51 @@ class MaxPool1D(Module):
     def update_parameters(self, gradient_step=0.001):
         pass
 
+class AvgPool1D(Module):
+    def __init__(self, k_size, stride):
+        super().__init__()
+        self._k_size = k_size
+        self._stride = stride
+        self.idx = []
+
+    def forward(self, X):
+        batch, length, chan_in = X.shape
+        res = np.zeros((batch, (length - self._k_size) // self._stride + 1, chan_in))
+
+        for ind_x in range(batch):
+                for c in range(chan_in):
+                    ind_res = 0
+                    for i in range(0, length, self._stride):
+                        if (i + self._k_size) > length:
+                            break
+                        res[ind_x, ind_res, c] = np.mean(X[ind_x,i:i+self._k_size,c])
+                        # indmax = np.argmax(input[ind_x,i:i+self._k_size,c])
+                        # self.idx.append(indmax)
+                        ind_res += 1
+
+        return res
+    
+    def backward_delta(self, input, delta):
+        batch, length, chan_in = input.shape
+        res = np.zeros((batch, length, chan_in))
+        
+        for ind_x in range(batch):
+            for c in range(chan_in):
+                ind = 0
+                for i in range(0, length, self._stride):
+                    if (i + self._k_size) < length:
+                        indmax = np.argmax(input[ind_x,i:i+self._k_size,c])
+                        res[ind_x, i+self._k_size, c] += delta[ind_x, ind, c]/self._k_size
+                    ind += 1
+        
+        return res
+        # return delta * res[np.repeat(range(batch),chan_in),self.idx,list(range(chan_in))*batch]
+
+    def backward_update_gradient(self, input, delta):
+        pass
+
+    def update_parameters(self, gradient_step=0.001):
+        pass
 class Flatten(Module):
     def __init__(self):
         super().__init__()

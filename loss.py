@@ -26,11 +26,14 @@ class CrossEntropyLogSoftmax(Loss):
         """
         y -> One hot encoding
         """
+        # yhat = ((yhat.T/np.max(yhat, axis=1)).T/2)
         return -np.sum(yhat*y, axis=1) + np.log(np.sum(np.exp(yhat), axis=1).reshape((-1,1)))
+        
     def backward(self, y, yhat):
         """
         y -> One hot encoding
         """
+        # yhat = ((yhat.T/np.max(yhat, axis=1)).T/2)
         return -y + (np.exp(yhat))/np.sum(np.exp(yhat), axis=1).reshape((-1,1))
 
 class CrossEntropy(Loss):
@@ -57,14 +60,12 @@ class BinaryCrossEntropy(Loss):
         """
         y -> One hot encoding
         """
-        seuil = np.ones((yhat.shape[0], yhat.shape[1])) * -100
         return - (y*np.log(yhat + 1e-100) + (1-y)*np.log(1-yhat+ 1e-100))
-        # return - (y * np.log(yhat + 1e-100) + (1-y) * np.log(1-yhat + 1e-100))
-        return - (y * np.maximum(seuil, np.log(yhat)) + (1-y) * np.maximum(seuil, np.log(1-yhat)))
+
+    
     def backward(self, y, yhat):
         """
         y -> One hot encoding
         """
-        return -(y/(yhat + 1e-100)) + (1-y)/(1-yhat + 1e-100)
-        seuil = np.ones((yhat.shape[0], yhat.shape[1])) * 1e-10000000000
-        return -(y/np.maximum(seuil, yhat)) + (1-y)/np.maximum(seuil, 1-yhat)
+        
+        return ((1-y)/(1-yhat+ 1e-100)) - (y/yhat+ 1e-100)
