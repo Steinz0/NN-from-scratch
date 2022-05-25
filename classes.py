@@ -62,6 +62,8 @@ class Linear(Module):
         if self.withbiais:
             self._biais -= gradient_step * self._gradient_b
 
+############################ ACTIVATION #################################
+
 class TanH(Module):
     def __init__(self):
         super().__init__()
@@ -96,6 +98,60 @@ class Sigmoide(Module):
 
     def update_parameters(self, gradient_step=0.001):
         pass
+
+class Softmax(Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, X):
+        return np.exp(X)/np.sum(np.exp(X), axis=1).reshape(-1,1)
+
+    def backward_update_gradient(self, input, delta):
+        pass
+
+    def backward_delta(self, input, delta):
+        return (np.exp(input)/np.sum(np.exp(input), axis=1).reshape(-1,1)) * (1 - np.exp(input)/np.sum(np.exp(input), axis=1).reshape(-1,1)) * delta
+
+    def update_parameters(self, gradient_step=0.001):
+        pass
+
+class LogSoftmax(Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, X):
+        return np.log(np.exp(X)/np.sum(np.exp(X), axis=1).reshape(-1,1))
+
+    def backward_update_gradient(self, input, delta):
+        pass
+
+    def backward_delta(self, input, delta):
+        return (1 - np.exp(input)/np.sum(np.exp(input), axis=1).reshape(-1,1)) * delta
+
+    def update_parameters(self, gradient_step=0.001):
+        pass
+
+class ReLu(Module):
+    def __init__(self):
+        super().__init__()
+    
+    def forward(self, X):
+        return np.maximum(X, 0)
+
+    def backward_delta(self, input, delta):
+        return np.where(input>0, 1, 0) * delta
+
+    def backward_update_gradient(self, input, delta):
+        pass
+
+    def update_parameters(self, gradient_step=0.001):
+        pass
+
+
+############################ ACTIVATION #################################
+
+
+############################ OPTIMIZER ##################################
 
 class Sequential():
     def __init__(self, layers=None) -> None:
@@ -201,53 +257,42 @@ def StochasticGD(net, loss, x, y, epochs=5, eps=0.001, verbose=False):
         
         return all_loss
 
-class Softmax(Module):
-    def __init__(self):
-        super().__init__()
+############################ LAYER ##################################
 
+class Linear(Module):
+    def __init__(self, input, output, biais=True):
+        super().__init__()
+        self.input = input
+        self.output = output
+        self._parameters = np.random.random((input, output)) - 0.5
+        self._gradient = np.zeros((input, output))
+        self.withbiais = biais
+        if biais:
+            self._biais = np.random.random((1, output)) - 0.5
+            self._gradient_b = np.zeros((1, output))
+        else:
+            self._biais = np.zeros((1, output))
+            
     def forward(self, X):
-        return np.exp(X)/np.sum(np.exp(X), axis=1).reshape(-1,1)
+        return np.dot(X,self._parameters) + self._biais
+
+    def zero_grad(self):
+        self._gradient = np.zeros((self.input,self.output))
+        if self.withbiais:
+            self._gradient_b = np.zeros((1,self.output))
 
     def backward_update_gradient(self, input, delta):
-        pass
+        self._gradient = self._gradient + np.dot(input.T,delta)
+        if self.withbiais:
+            self._gradient_b = self._gradient_b + np.sum(delta, axis=0)
 
     def backward_delta(self, input, delta):
-        return (np.exp(input)/np.sum(np.exp(input), axis=1).reshape(-1,1)) * (1 - np.exp(input)/np.sum(np.exp(input), axis=1).reshape(-1,1)) * delta
+        return np.dot(delta,self._parameters.T)
 
     def update_parameters(self, gradient_step=0.001):
-        pass
-
-class LogSoftmax(Module):
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, X):
-        return np.log(np.exp(X)/np.sum(np.exp(X), axis=1).reshape(-1,1))
-
-    def backward_update_gradient(self, input, delta):
-        pass
-
-    def backward_delta(self, input, delta):
-        return (1 - np.exp(input)/np.sum(np.exp(input), axis=1).reshape(-1,1)) * delta
-
-    def update_parameters(self, gradient_step=0.001):
-        pass
-
-class ReLu(Module):
-    def __init__(self):
-        super().__init__()
-    
-    def forward(self, X):
-        return np.maximum(X, 0)
-
-    def backward_delta(self, input, delta):
-        return np.where(input>0, 1, 0) * delta
-
-    def backward_update_gradient(self, input, delta):
-        pass
-
-    def update_parameters(self, gradient_step=0.001):
-        pass
+        self._parameters -= gradient_step * self._gradient
+        if self.withbiais:
+            self._biais -= gradient_step * self._gradient_b
 
 class Conv1D(Module):
     def __init__(self, k_size, chan_in, chan_out, stride):
@@ -441,6 +486,7 @@ class AvgPool1D(Module):
 
     def update_parameters(self, gradient_step=0.001):
         pass
+
 class Flatten(Module):
     def __init__(self):
         super().__init__()

@@ -101,7 +101,7 @@ def get_usps(l,datax,datay):
     return tmpx,tmpy
 
 def show_usps(data):
-    plt.imshow(data.reshape((16,16)),interpolation="nearest",cmap="gray")
+    plt.imshow(data.reshape((16,16)),interpolation="nearest",cmap="gray",aspect='auto')
 
 def show_usps_compare(x, x2):
     plt.figure()
@@ -153,4 +153,39 @@ def show_mnist_compare(x, x2):
     plt.subplot(1, 2, 2) # row 1, col 2 index 1
     plt.imshow(img2, cmap='gray')
     plt.title(f'AutoEncodeur image')
+    plt.show()
+
+
+def show_mnist_compare_multi(x, x2):
+    plt.figure(figsize=(21,7))
+
+    len_img = len(x)
+
+    for i in range(len_img):
+        img = x[i].reshape(28,28)
+        img2 = x2[i].reshape(28,28)
+        plt.subplot(2, len_img, i+1) # row 1, col 2 index 1
+        plt.axis("off")
+        plt.imshow(img, cmap='gray', aspect='auto', interpolation='nearest')
+        plt.subplot(2, len_img, i+len_img+1) # row 1, col 2 index 1
+        plt.axis("off")
+        plt.imshow(img2, cmap='gray', aspect='auto', interpolation='nearest')
+    plt.show()
+
+def add_noise_gaussien(data, mean=0, std=1, p=0.1):
+    gaus_noise = np.random.normal(mean, std, data.shape)
+    noise_img = data + p * gaus_noise
+    return noise_img 
+
+def add_noise_pepper(data, p=0.1):
+    out = data + np.random.choice([0, 1], size=data.shape, p=[1-p, p])
+    return np.where(out > 1,1,out)
+
+def show_prediction(seq, X):
+    plt.figure(figsize=(21,7))
+
+    for ind_x in range(len(X)):
+        plt.subplot(2, int(len(X)/2), ind_x+1) 
+        show_usps(X[ind_x])
+        plt.title(f'Prediction : {np.argmax(seq.forward(np.array([X[ind_x]])))}')
     plt.show()
